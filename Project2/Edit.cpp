@@ -251,7 +251,7 @@ void Edit::InitControls()
     // колонка "Имя" - одна колонка на всю ширину
     LVCOLUMN lvc = { 0 };
     lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
-    lvc.cx = 265; // Начальная ширина колонки
+    lvc.cx = 265; // Ширина колонки для ListView (270px - немного отступов)
     lvc.pszText = (LPWSTR)L"Имя файла";
     lvc.iSubItem = 0;
     ListView_InsertColumn(hListLeft, 0, &lvc);
@@ -309,20 +309,26 @@ void Edit::InitControls()
 // ============ АВТОМАТИЧЕСКОЕ ИЗМЕНЕНИЕ ШИРИНЫ СТОЛБЦОВ ============
 void Edit::AutoSizeColumns()
 {
+    if (!hListLeft || !hListRight) return;
+
     // Автоматически подгоняем ширину столбца под ширину ListView
     RECT rc;
-    GetClientRect(hListLeft, &rc);
-    int width = rc.right - rc.left - 5; // Минус небольшой отступ
-    if (width > 0)
+    if (GetClientRect(hListLeft, &rc))
     {
-        ListView_SetColumnWidth(hListLeft, 0, width);
+        int width = rc.right - rc.left - 30; // Минус небольшой отступ для скроллбара
+        if (width > 100) // Минимальная ширина 100 пикселей
+        {
+            ListView_SetColumnWidth(hListLeft, 0, width);
+        }
     }
 
-    GetClientRect(hListRight, &rc);
-    width = rc.right - rc.left - 5;
-    if (width > 0)
+    if (GetClientRect(hListRight, &rc))
     {
-        ListView_SetColumnWidth(hListRight, 0, width);
+        int width = rc.right - rc.left - 30;
+        if (width > 100)
+        {
+            ListView_SetColumnWidth(hListRight, 0, width);
+        }
     }
 }
 void Edit::RefreshDrives(HWND hCombo)
@@ -355,9 +361,11 @@ void Edit::RefreshFolder(HWND hList, HWND hStatic, std::wstring path)
         if (fd.cFileName[0] == L'.' && fd.cFileName[1] == 0) continue; // "."
 
         LVITEMW item = {};
-        item.mask = LVIF_TEXT | LVIF_IMAGE;
+        item.mask = LVIF_TEXT | LVIF_IMAGE | LVIF_STATE;
         item.iItem = index++;
         item.pszText = fd.cFileName;
+        item.state = 0;
+        item.stateMask = 0;
 
         std::wstring full = path + fd.cFileName;
         SHFILEINFO shfi;

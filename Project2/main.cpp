@@ -247,6 +247,40 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int)
 {
     InitCommonControls();
-    DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_MAIN), nullptr, DialogProc, (LPARAM)new Edit());
+
+    // Создаем диалог и центрируем его
+    HWND hWnd = CreateDialogParam(hInst, MAKEINTRESOURCE(IDD_MAIN), nullptr, DialogProc, (LPARAM)new Edit());
+
+    if (hWnd)
+    {
+        // Центрируем окно на экране
+        RECT rc;
+        GetWindowRect(hWnd, &rc);
+        int width = rc.right - rc.left;
+        int height = rc.bottom - rc.top;
+
+        int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+        int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+        int x = (screenWidth - width) / 2;
+        int y = (screenHeight - height) / 2;
+
+        SetWindowPos(hWnd, NULL, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+
+        ShowWindow(hWnd, SW_SHOW);
+
+        MSG msg;
+        while (GetMessage(&msg, NULL, 0, 0))
+        {
+            if (!IsDialogMessage(hWnd, &msg))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+        }
+
+        return (int)msg.wParam;
+    }
+
     return 0;
 }
