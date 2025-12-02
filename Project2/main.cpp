@@ -47,6 +47,7 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
                     SendMessage(g_pEdit->hComboLeft, CB_GETLBTEXT, index, (LPARAM)drive);
                     g_pEdit->RefreshFolder(g_pEdit->hListLeft, g_pEdit->hStaticLeft, drive);
                     g_pEdit->bActiveLeft = true;
+                    g_pEdit->ClearFileAttributes();
                 }
             }
             else if (LOWORD(wParam) == IDC_COMBO_RIGHT)
@@ -58,6 +59,7 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
                     SendMessage(g_pEdit->hComboRight, CB_GETLBTEXT, index, (LPARAM)drive);
                     g_pEdit->RefreshFolder(g_pEdit->hListRight, g_pEdit->hStaticRight, drive);
                     g_pEdit->bActiveLeft = false;
+                    g_pEdit->ClearFileAttributes();
                 }
             }
         }
@@ -69,6 +71,8 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             case IDC_BUTTON_MOVE:   g_pEdit->MoveSelected(); break;
             case IDC_BUTTON_CREATE: g_pEdit->CreateNew(); break;
             case IDC_BUTTON_DELETE: g_pEdit->DeleteSelected(); break;
+            case IDC_BUTTON_RENAME: g_pEdit->RenameFile(); break;
+            case IDC_BUTTON_HELP:   g_pEdit->ShowHelp(); break;
             case IDC_BUTTON_EXIT:   EndDialog(hDlg, 0); break;
             }
         }
@@ -92,6 +96,8 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
                 if (pnmv->uNewState & LVIS_SELECTED)
                 {
                     g_pEdit->bActiveLeft = (pnm->idFrom == IDC_LIST_LEFT);
+                    // Обновляем атрибуты выбранного файла
+                    g_pEdit->UpdateFileAttributes();
                 }
             }
         }
@@ -121,6 +127,14 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
     {
         switch (wParam)
         {
+        case VK_F1:
+            pEdit->ShowHelp();
+            return 0;
+
+        case VK_F2:
+            pEdit->RenameFile();
+            return 0;
+
         case VK_F5:
             pEdit->CopyBetweenPanels();
             return 0;
@@ -165,6 +179,7 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
             {
                 path = path.substr(0, pos + 1);
                 pEdit->RefreshFolder(hList, hStatic, path);
+                pEdit->ClearFileAttributes();
             }
             return 0;
         }
@@ -181,6 +196,7 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
             {
                 pEdit->bActiveLeft = true;
                 SetFocus(pEdit->hListLeft);
+                pEdit->UpdateFileAttributes();
             }
             return 0;
 
@@ -190,7 +206,13 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
             {
                 pEdit->bActiveLeft = false;
                 SetFocus(pEdit->hListRight);
+                pEdit->UpdateFileAttributes();
             }
+            return 0;
+
+        case VK_SPACE:
+            // Пробел - показать атрибуты файла
+            pEdit->UpdateFileAttributes();
             return 0;
         }
     }

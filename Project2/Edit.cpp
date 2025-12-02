@@ -7,8 +7,12 @@
 #include <locale>
 #include <codecvt>
 #include <string>
+#include <sstream>
+#include <iomanip>
 
 #pragma comment(lib, "shlwapi.lib")
+
+using namespace std;
 
 // Вспомогательная структура для передачи данных в диалог
 struct CreateDialogData
@@ -17,32 +21,58 @@ struct CreateDialogData
     wchar_t filename[MAX_PATH];
 };
 
-// ============ ДИАЛОГ СОЗДАНИЯ ============
-// ============ ДИАЛОГ СОЗДАНИЯ ============
+struct RenameDialogData
+{
+    wchar_t oldName[MAX_PATH];
+    wchar_t newName[MAX_PATH];
+};
+
+// ============ ФОРМАТИРОВАНИЕ РАЗМЕРА ФАЙЛА ============
+std::wstring FormatFileSize(ULONGLONG size)
+{
+    wstringstream ss;
+
+    if (size < 1024)
+        ss << size << L" Б";
+    else if (size < 1024 * 1024)
+        ss << fixed << setprecision(1) << (size / 1024.0) << L" КБ";
+    else if (size < 1024 * 1024 * 1024)
+        ss << fixed << setprecision(1) << (size / (1024.0 * 1024.0)) << L" МБ";
+    else
+        ss << fixed << setprecision(1) << (size / (1024.0 * 1024.0 * 1024.0)) << L" ГБ";
+
+    return ss.str();
+}
+
+// ============ ФОРМАТИРОВАНИЕ ДАТЫ ============
+std::wstring FormatFileTime(FILETIME ft)
+{
+    SYSTEMTIME st;
+    FileTimeToSystemTime(&ft, &st);
+
+    wchar_t buffer[256];
+    swprintf_s(buffer, L"%02d.%02d.%04d %02d:%02d",
+        st.wDay, st.wMonth, st.wYear, st.wHour, st.wMinute);
+
+    return wstring(buffer);
+}
+
 // ============ ДИАЛОГ СОЗДАНИЯ ============
 INT_PTR CALLBACK CreateDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
     case WM_INITDIALOG:
-    {
-        // Сохраняем указатель на данные в GWLP_USERDATA
         SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
-
-        // Установить фокус на поле ввода
         SetFocus(GetDlgItem(hDlg, IDC_EDIT_FILENAME));
-
-        // По умолчанию выбрано "Файл"
         CheckRadioButton(hDlg, IDC_RADIO_FILE, IDC_RADIO_FOLDER, IDC_RADIO_FILE);
         return TRUE;
-    }
 
     case WM_COMMAND:
         switch (LOWORD(wParam))
         {
         case IDOK:
         {
-            // Получаем указатель на данные из GWLP_USERDATA
             CreateDialogData* pData = (CreateDialogData*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
             if (!pData)
             {
@@ -61,10 +91,119 @@ INT_PTR CALLBACK CreateDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam
 
             bool isFile = (IsDlgButtonChecked(hDlg, IDC_RADIO_FILE) == BST_CHECKED);
 
-            // Сохраняем результат в структуре данных
             pData->isFile = isFile;
             wcscpy_s(pData->filename, MAX_PATH, filename);
 
+            EndDialog(hDlg, IDOK);
+            return TRUE;
+        }
+
+        case IDCANCEL:
+            EndDialog(hDlg, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// ============ ДИАЛОГ СПРАВКИ ============
+INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_INITDIALOG:
+    {
+        HWND hStatic = GetDlgItem(hDlg, -1);
+
+        wstring helpText =
+            L"ФАЙЛОВЫЙ МЕНЕДЖЕР - СПРАВКА\n\n"
+            L"ОСНОВНЫЕ ВОЗМОЖНОСТИ:\n"
+            L"• Просмотр файлов и папок на дисках\n"
+            L"• Копирование, перемещение, удаление\n"
+            L"• Создание новых файлов и папок\n"
+            L"• Переименование файлов и папок\n"
+            L"• Просмотр атрибутов файлов\n\n"
+            L"ГОРЯЧИЕ КЛАВИШИ:\n"
+            L"F1 - Открыть справку\n"
+            L"F2 - Переименовать выделенный элемент\n"
+            L"F5 - Копировать в другую панель\n"
+            L"F6 - Переместить в другую панель\n"
+            L"F7 - Создать файл/папку\n"
+            L"F8 - Удалить выделенный элемент\n"
+            L"Enter - Открыть файл или папку\n"
+            L"Backspace - Перейти на уровень выше\n"
+            L"Tab - Переключить активную панель\n"
+            L"← → - Переключение между панелями\n"
+            L"Пробел - Показать атрибуты файла\n\n"
+            L"УПРАВЛЕНИЕ:\n"
+            L"• Двойной клик - открыть файл/папку\n"
+            L"• Выбор диска - через выпадающий список\n"
+            L"• Выбор файла - щелчок мыши\n"
+            L"• Атрибуты файла отображаются справа\n\n"
+            L"КНОПКИ УПРАВЛЕНИЯ:\n"
+            L"Копировать - F5\n"
+            L"Переместить - F6\n"
+            L"Создать - F7\n"
+            L"Удалить - F8\n"
+            L"Переименовать - F2\n"
+            L"Справка - F1\n";
+
+        SetWindowTextW(hStatic, helpText.c_str());
+        return TRUE;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+            EndDialog(hDlg, LOWORD(wParam));
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// ============ ДИАЛОГ ПЕРЕИМЕНОВАНИЯ ============
+INT_PTR CALLBACK RenameDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_INITDIALOG:
+    {
+        SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
+        RenameDialogData* pData = (RenameDialogData*)lParam;
+
+        wchar_t title[256];
+        swprintf_s(title, L"Переименовать: %s", pData->oldName);
+        SetWindowTextW(hDlg, title);
+
+        SetDlgItemTextW(hDlg, IDC_RENAME_EDIT, pData->oldName);
+        SendDlgItemMessageW(hDlg, IDC_RENAME_EDIT, EM_SETSEL, 0, -1);
+        SetFocus(GetDlgItem(hDlg, IDC_RENAME_EDIT));
+
+        return TRUE;
+    }
+
+    case WM_COMMAND:
+        switch (LOWORD(wParam))
+        {
+        case IDOK:
+        {
+            RenameDialogData* pData = (RenameDialogData*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
+            if (!pData)
+            {
+                EndDialog(hDlg, IDCANCEL);
+                return TRUE;
+            }
+
+            wchar_t newName[MAX_PATH];
+            GetDlgItemTextW(hDlg, IDC_RENAME_EDIT, newName, MAX_PATH);
+
+            if (wcslen(newName) == 0)
+            {
+                MessageBoxW(hDlg, L"Введите новое имя", L"Ошибка", MB_ICONERROR);
+                return TRUE;
+            }
+
+            wcscpy_s(pData->newName, MAX_PATH, newName);
             EndDialog(hDlg, IDOK);
             return TRUE;
         }
@@ -86,6 +225,14 @@ void Edit::InitControls()
     hListRight = GetDlgItem(hDlg, IDC_LIST_RIGHT);
     hStaticLeft = GetDlgItem(hDlg, IDC_STATIC_LEFT);
     hStaticRight = GetDlgItem(hDlg, IDC_STATIC_RIGHT);
+
+    // Элементы для атрибутов
+    hAttrName = GetDlgItem(hDlg, IDC_ATTR_NAME);
+    hAttrSize = GetDlgItem(hDlg, IDC_ATTR_SIZE);
+    hAttrCreated = GetDlgItem(hDlg, IDC_ATTR_CREATED);
+    hAttrModified = GetDlgItem(hDlg, IDC_ATTR_MODIFIED);
+    hAttrType = GetDlgItem(hDlg, IDC_ATTR_TYPE);
+    hAttrPath = GetDlgItem(hDlg, IDC_ATTR_PATH);
 
     // колонка "Имя"
     LVCOLUMN lvc = { 0 };
@@ -112,13 +259,13 @@ void Edit::InitControls()
     RefreshDrives(hComboLeft);
     RefreshDrives(hComboRight);
 
-    // Устанавливаем текущий диск C: по умолчанию
+    // Устанавливаем C: по умолчанию
     int count = (int)SendMessage(hComboLeft, CB_GETCOUNT, 0, 0);
     for (int i = 0; i < count; i++)
     {
         wchar_t drive[MAX_PATH] = { 0 };
         SendMessage(hComboLeft, CB_GETLBTEXT, i, (LPARAM)drive);
-        if (wcsstr(drive, L"C:\\") != NULL)
+        if (wcsncmp(drive, L"C:\\", 3) == 0)
         {
             SendMessage(hComboLeft, CB_SETCURSEL, i, 0);
             break;
@@ -129,7 +276,7 @@ void Edit::InitControls()
     {
         wchar_t drive[MAX_PATH] = { 0 };
         SendMessage(hComboRight, CB_GETLBTEXT, i, (LPARAM)drive);
-        if (wcsstr(drive, L"C:\\") != NULL)
+        if (wcsncmp(drive, L"C:\\", 3) == 0)
         {
             SendMessage(hComboRight, CB_SETCURSEL, i, 0);
             break;
@@ -138,6 +285,9 @@ void Edit::InitControls()
 
     RefreshFolder(hListLeft, hStaticLeft, L"C:\\");
     RefreshFolder(hListRight, hStaticRight, L"C:\\");
+
+    // Очищаем атрибуты при запуске
+    ClearFileAttributes();
 }
 
 void Edit::RefreshDrives(HWND hCombo)
@@ -192,6 +342,9 @@ void Edit::RefreshFolder(HWND hList, HWND hStatic, std::wstring path)
 
     FindClose(hFind);
     SetWindowTextW(hStatic, path.c_str());
+
+    // Очищаем атрибуты при смене папки
+    ClearFileAttributes();
 }
 
 void Edit::OpenFolder(bool left)
@@ -212,7 +365,6 @@ void Edit::OpenFolder(bool left)
     // === Логика ".." ===
     if (wcscmp(name, L"..") == 0)
     {
-        // Удаляем последнюю папку из пути
         if (path.back() == L'\\') path.pop_back();
         size_t pos = path.find_last_of(L'\\');
         if (pos != std::wstring::npos)
@@ -333,6 +485,9 @@ void Edit::DeleteSelected()
             std::wstring folder = currentPath;
             if (folder.back() != L'\\') folder += L"\\";
             RefreshFolder(hList, hStatic, folder);
+
+            // Очищаем атрибуты
+            ClearFileAttributes();
         }
         else
         {
@@ -345,17 +500,10 @@ void Edit::CreateNew()
 {
     CreateDialogData data = { true, L"" };
 
-    // Получаем hInst из текущего модуля (самый надежный способ)
     HINSTANCE hInst = GetModuleHandle(NULL);
 
-    // Открываем диалог создания
-    INT_PTR result = DialogBoxParam(hInst,
-        MAKEINTRESOURCE(IDD_CREATE_DIALOG),
-        hDlg,
-        CreateDlgProc,
-        (LPARAM)&data);
-
-    if (result == IDOK)
+    if (DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_CREATE_DIALOG), hDlg,
+        CreateDlgProc, (LPARAM)&data) == IDOK)
     {
         HWND hList = bActiveLeft ? hListLeft : hListRight;
         HWND hStatic = bActiveLeft ? hStaticLeft : hStaticRight;
@@ -373,7 +521,6 @@ void Edit::CreateNew()
 
         if (data.isFile)
         {
-            // Создаем файл
             HANDLE hFile = CreateFileW(fullPath.c_str(),
                 GENERIC_WRITE,
                 0,
@@ -389,13 +536,11 @@ void Edit::CreateNew()
         }
         else
         {
-            // Создаем папку
             success = CreateDirectoryW(fullPath.c_str(), NULL);
         }
 
         if (success)
         {
-            // Обновляем список
             std::wstring folder = currentPath;
             if (folder.empty() || folder.back() != L'\\')
                 folder += L"\\";
@@ -422,7 +567,6 @@ void Edit::CreateNew()
     }
 }
 
-// ============ ПЕРЕМЕЩЕНИЕ ФАЙЛА/ПАПКИ ============
 void Edit::MoveSelected()
 {
     HWND hSrcList = bActiveLeft ? hListLeft : hListRight;
@@ -454,7 +598,6 @@ void Edit::MoveSelected()
     GetWindowTextW(hSrcStatic, src, MAX_PATH);
     GetWindowTextW(hDstStatic, dst, MAX_PATH);
 
-    // Формируем полные пути
     std::wstring srcPath = src;
     std::wstring dstPath = dst;
 
@@ -464,7 +607,6 @@ void Edit::MoveSelected()
     srcPath += name;
     dstPath += name;
 
-    // Проверяем, является ли исходный элемент папкой
     DWORD attr = GetFileAttributesW(srcPath.c_str());
     if (attr == INVALID_FILE_ATTRIBUTES)
     {
@@ -472,7 +614,6 @@ void Edit::MoveSelected()
         return;
     }
 
-    // Проверяем, существует ли уже файл в целевой папке
     if (GetFileAttributesW(dstPath.c_str()) != INVALID_FILE_ATTRIBUTES)
     {
         if (MessageBoxW(hDlg, L"Целевой файл уже существует. Перезаписать?",
@@ -482,23 +623,19 @@ void Edit::MoveSelected()
         }
     }
 
-    // Перемещаем файл/папку
     BOOL success = FALSE;
 
     if (attr & FILE_ATTRIBUTE_DIRECTORY)
     {
-        // Для папок используем MoveFile
         success = MoveFileW(srcPath.c_str(), dstPath.c_str());
     }
     else
     {
-        // Для файлов также используем MoveFile
         success = MoveFileW(srcPath.c_str(), dstPath.c_str());
     }
 
     if (success)
     {
-        // Обновляем обе панели
         std::wstring srcFolder = src;
         if (srcFolder.back() != L'\\') srcFolder += L"\\";
         std::wstring dstFolder = dst;
@@ -506,6 +643,9 @@ void Edit::MoveSelected()
 
         RefreshFolder(hSrcList, hSrcStatic, srcFolder);
         RefreshFolder(hDstList, hDstStatic, dstFolder);
+
+        // Очищаем атрибуты
+        ClearFileAttributes();
     }
     else
     {
@@ -517,6 +657,179 @@ void Edit::MoveSelected()
         else
         {
             MessageBoxW(hDlg, L"Не удалось переместить файл!", L"Ошибка", MB_ICONERROR);
+        }
+    }
+}
+
+// ============ ПОКАЗАТЬ СПРАВКУ ============
+void Edit::ShowHelp()
+{
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    DialogBox(hInst, MAKEINTRESOURCE(IDD_HELP_DIALOG), hDlg, HelpDlgProc);
+}
+
+// ============ ОЧИСТКА АТРИБУТОВ ФАЙЛА ============
+void Edit::ClearFileAttributes()
+{
+    if (hAttrName) SetWindowTextW(hAttrName, L"");
+    if (hAttrSize) SetWindowTextW(hAttrSize, L"");
+    if (hAttrCreated) SetWindowTextW(hAttrCreated, L"");
+    if (hAttrModified) SetWindowTextW(hAttrModified, L"");
+    if (hAttrType) SetWindowTextW(hAttrType, L"");
+    if (hAttrPath) SetWindowTextW(hAttrPath, L"");
+}
+
+// ============ ОБНОВЛЕНИЕ АТРИБУТОВ ФАЙЛА ============
+void Edit::UpdateFileAttributes()
+{
+    HWND hList = bActiveLeft ? hListLeft : hListRight;
+    HWND hStatic = bActiveLeft ? hStaticLeft : hStaticRight;
+
+    int sel = ListView_GetNextItem(hList, -1, LVNI_SELECTED);
+    if (sel == -1)
+    {
+        ClearFileAttributes();
+        return;
+    }
+
+    wchar_t name[MAX_PATH] = { 0 };
+    ListView_GetItemText(hList, sel, 0, name, MAX_PATH);
+
+    // Пропускаем ".."
+    if (wcscmp(name, L"..") == 0)
+    {
+        ClearFileAttributes();
+        return;
+    }
+
+    wchar_t fullpath[MAX_PATH] = { 0 };
+    GetWindowTextW(hStatic, fullpath, MAX_PATH);
+    if (fullpath[wcslen(fullpath) - 1] != L'\\')
+        wcscat_s(fullpath, L"\\");
+    wcscat_s(fullpath, name);
+
+    currentSelectedPath = fullpath;
+
+    // Получаем информацию о файле
+    WIN32_FILE_ATTRIBUTE_DATA fileAttr;
+    if (!GetFileAttributesExW(fullpath, GetFileExInfoStandard, &fileAttr))
+    {
+        ClearFileAttributes();
+        return;
+    }
+
+    // Имя файла
+    SetWindowTextW(hAttrName, name);
+
+    // Тип файла
+    if (fileAttr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        SetWindowTextW(hAttrType, L"Папка");
+    else
+        SetWindowTextW(hAttrType, L"Файл");
+
+    // Размер файла
+    if (!(fileAttr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        ULONGLONG fileSize = ((ULONGLONG)fileAttr.nFileSizeHigh << 32) | fileAttr.nFileSizeLow;
+        wstring sizeStr = FormatFileSize(fileSize);
+        SetWindowTextW(hAttrSize, sizeStr.c_str());
+    }
+    else
+    {
+        SetWindowTextW(hAttrSize, L"---");
+    }
+
+    // Дата создания
+    wstring createdStr = FormatFileTime(fileAttr.ftCreationTime);
+    SetWindowTextW(hAttrCreated, createdStr.c_str());
+
+    // Дата изменения
+    wstring modifiedStr = FormatFileTime(fileAttr.ftLastWriteTime);
+    SetWindowTextW(hAttrModified, modifiedStr.c_str());
+
+    // Путь
+    SetWindowTextW(hAttrPath, fullpath);
+}
+
+// ============ ПЕРЕИМЕНОВАНИЕ ФАЙЛА ============
+void Edit::RenameFile()
+{
+    HWND hList = bActiveLeft ? hListLeft : hListRight;
+    HWND hStatic = bActiveLeft ? hStaticLeft : hStaticRight;
+
+    int sel = ListView_GetNextItem(hList, -1, LVNI_SELECTED);
+    if (sel == -1)
+    {
+        MessageBoxW(hDlg, L"Выделите файл или папку для переименования!",
+            L"Переименование", MB_ICONWARNING);
+        return;
+    }
+
+    wchar_t oldName[MAX_PATH] = { 0 };
+    ListView_GetItemText(hList, sel, 0, oldName, MAX_PATH);
+
+    // Пропускаем ".."
+    if (wcscmp(oldName, L"..") == 0)
+    {
+        MessageBoxW(hDlg, L"Нельзя переименовать '..'!", L"Переименование", MB_ICONWARNING);
+        return;
+    }
+
+    RenameDialogData data = { 0 };
+    wcscpy_s(data.oldName, MAX_PATH, oldName);
+
+    HINSTANCE hInst = GetModuleHandle(NULL);
+
+    if (DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_RENAME_DIALOG), hDlg,
+        RenameDlgProc, (LPARAM)&data) == IDOK)
+    {
+        // Формируем старый и новый пути
+        wchar_t oldPath[MAX_PATH] = { 0 };
+        wchar_t newPath[MAX_PATH] = { 0 };
+
+        GetWindowTextW(hStatic, oldPath, MAX_PATH);
+        wcscpy_s(newPath, MAX_PATH, oldPath);
+
+        if (oldPath[wcslen(oldPath) - 1] != L'\\')
+        {
+            wcscat_s(oldPath, L"\\");
+            wcscat_s(newPath, L"\\");
+        }
+
+        wcscat_s(oldPath, oldName);
+        wcscat_s(newPath, data.newName);
+
+        // Переименовываем
+        if (MoveFileW(oldPath, newPath))
+        {
+            // Обновляем список
+            wchar_t currentPath[MAX_PATH] = { 0 };
+            GetWindowTextW(hStatic, currentPath, MAX_PATH);
+            std::wstring folder = currentPath;
+            if (folder.back() != L'\\') folder += L"\\";
+            RefreshFolder(hList, hStatic, folder);
+
+            // Обновляем атрибуты
+            UpdateFileAttributes();
+        }
+        else
+        {
+            DWORD error = GetLastError();
+            if (error == ERROR_ACCESS_DENIED)
+            {
+                MessageBoxW(hDlg, L"Нет прав для переименования файла!",
+                    L"Ошибка", MB_ICONERROR);
+            }
+            else if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS)
+            {
+                MessageBoxW(hDlg, L"Файл с таким именем уже существует!",
+                    L"Ошибка", MB_ICONERROR);
+            }
+            else
+            {
+                MessageBoxW(hDlg, L"Не удалось переименовать файл!",
+                    L"Ошибка", MB_ICONERROR);
+            }
         }
     }
 }

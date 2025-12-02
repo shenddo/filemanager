@@ -16,7 +16,12 @@ public:
     HWND hListLeft, hListRight;
     HWND hStaticLeft, hStaticRight;
 
+    // элементы для атрибутов
+    HWND hAttrName = nullptr, hAttrSize = nullptr, hAttrCreated = nullptr;
+    HWND hAttrModified = nullptr, hAttrType = nullptr, hAttrPath = nullptr;
+
     bool bActiveLeft = true;          // какая панель активна
+    std::wstring currentSelectedPath; // текущий выбранный файл
 
     Edit() = default;
 
@@ -32,7 +37,13 @@ public:
     void DeleteSelected();
     void CreateNew();                 // Создание файла/папки
     void MoveSelected();              // Перемещение файла/папки
+    void ShowHelp();                  // Показать справку
+    void UpdateFileAttributes();      // Обновить атрибуты выбранного файла
+    void ClearFileAttributes();       // Очистить атрибуты файла
+    void RenameFile();                // Переименовать файл
 };
 
-// Сделаем функцию глобальной, а не членом класса
+// Глобальные функции для диалогов
 INT_PTR CALLBACK CreateDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK RenameDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
