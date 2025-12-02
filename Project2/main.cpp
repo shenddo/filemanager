@@ -34,6 +34,14 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 
         return TRUE;
 
+    case WM_SIZE:
+        // При изменении размера окна автоматически меняем ширину столбцов
+        if (g_pEdit)
+        {
+            g_pEdit->AutoSizeColumns();
+        }
+        break;
+
     case WM_COMMAND:
         // Обработка выбора диска в комбобоксах
         if (HIWORD(wParam) == CBN_SELCHANGE)
@@ -75,6 +83,16 @@ INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             case IDC_BUTTON_HELP:   g_pEdit->ShowHelp(); break;
             case IDC_BUTTON_EXIT:   EndDialog(hDlg, 0); break;
             }
+        }
+        break;
+
+    case WM_KEYDOWN:
+        // Обработка F1 в главном окне
+        if (wParam == VK_F1)
+        {
+            if (g_pEdit)
+                g_pEdit->ShowHelp();
+            return TRUE;
         }
         break;
 
@@ -188,6 +206,7 @@ LRESULT CALLBACK ListViewSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
             // Переключаем активную панель
             pEdit->bActiveLeft = (hWnd == pEdit->hListRight);
             SetFocus(pEdit->bActiveLeft ? pEdit->hListLeft : pEdit->hListRight);
+            pEdit->UpdateFileAttributes();
             return 0;
 
         case VK_LEFT:

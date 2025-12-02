@@ -108,13 +108,16 @@ INT_PTR CALLBACK CreateDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam
 }
 
 // ============ ДИАЛОГ СПРАВКИ ============
+// ============ ДИАЛОГ СПРАВКИ С RICHEDIT ============
+// ============ ДИАЛОГ СПРАВКИ ============
 INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
     case WM_INITDIALOG:
     {
-        HWND hStatic = GetDlgItem(hDlg, -1);
+        // Используем обычный статический текст вместо RichEdit для простоты
+        HWND hStatic = GetDlgItem(hDlg, -1); // Первый статик контрол в диалоге
 
         wstring helpText =
             L"ФАЙЛОВЫЙ МЕНЕДЖЕР - СПРАВКА\n\n"
@@ -136,7 +139,7 @@ INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             L"Tab - Переключить активную панель\n"
             L"← → - Переключение между панелями\n"
             L"Пробел - Показать атрибуты файла\n\n"
-            L"УПРАВЛЕНИЕ:\n"
+            L"УПРАВЛЕНИЕ МЫШЬЮ:\n"
             L"• Двойной клик - открыть файл/папку\n"
             L"• Выбор диска - через выпадающий список\n"
             L"• Выбор файла - щелчок мыши\n"
@@ -147,7 +150,18 @@ INT_PTR CALLBACK HelpDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam)
             L"Создать - F7\n"
             L"Удалить - F8\n"
             L"Переименовать - F2\n"
-            L"Справка - F1\n";
+            L"Справка - F1\n\n"
+            L"ПАНЕЛЬ АТРИБУТОВ:\n"
+            L"Показывает информацию о выбранном файле:\n"
+            L"• Имя файла\n"
+            L"• Тип (файл/папка)\n"
+            L"• Размер (для файлов)\n"
+            L"• Дата создания\n"
+            L"• Дата последнего изменения\n"
+            L"• Полный путь\n\n"
+            L"ВЕРСИЯ:\n"
+            L"Файловый менеджер 1.0\n"
+            L"Курсовой проект по программированию";
 
         SetWindowTextW(hStatic, helpText.c_str());
         return TRUE;
@@ -234,10 +248,10 @@ void Edit::InitControls()
     hAttrType = GetDlgItem(hDlg, IDC_ATTR_TYPE);
     hAttrPath = GetDlgItem(hDlg, IDC_ATTR_PATH);
 
-    // колонка "Имя"
+    // колонка "Имя" - одна колонка на всю ширину
     LVCOLUMN lvc = { 0 };
     lvc.mask = LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
-    lvc.cx = 310;
+    lvc.cx = 265; // Начальная ширина колонки
     lvc.pszText = (LPWSTR)L"Имя файла";
     lvc.iSubItem = 0;
     ListView_InsertColumn(hListLeft, 0, &lvc);
@@ -252,9 +266,9 @@ void Edit::InitControls()
     ListView_SetImageList(hListRight, hImg, LVSIL_SMALL);
 
     ListView_SetExtendedListViewStyle(hListLeft,
-        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
     ListView_SetExtendedListViewStyle(hListRight,
-        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
 
     RefreshDrives(hComboLeft);
     RefreshDrives(hComboRight);
@@ -288,8 +302,29 @@ void Edit::InitControls()
 
     // Очищаем атрибуты при запуске
     ClearFileAttributes();
-}
 
+    // Автоматически подгоняем ширину столбцов
+    AutoSizeColumns();
+}
+// ============ АВТОМАТИЧЕСКОЕ ИЗМЕНЕНИЕ ШИРИНЫ СТОЛБЦОВ ============
+void Edit::AutoSizeColumns()
+{
+    // Автоматически подгоняем ширину столбца под ширину ListView
+    RECT rc;
+    GetClientRect(hListLeft, &rc);
+    int width = rc.right - rc.left - 5; // Минус небольшой отступ
+    if (width > 0)
+    {
+        ListView_SetColumnWidth(hListLeft, 0, width);
+    }
+
+    GetClientRect(hListRight, &rc);
+    width = rc.right - rc.left - 5;
+    if (width > 0)
+    {
+        ListView_SetColumnWidth(hListRight, 0, width);
+    }
+}
 void Edit::RefreshDrives(HWND hCombo)
 {
     SendMessage(hCombo, CB_RESETCONTENT, 0, 0);

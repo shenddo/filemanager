@@ -41,6 +41,7 @@ public:
     void UpdateFileAttributes();      // Обновить атрибуты выбранного файла
     void ClearFileAttributes();       // Очистить атрибуты файла
     void RenameFile();                // Переименовать файл
+    void AutoSizeColumns();
 };
 
 // Глобальные функции для диалогов
